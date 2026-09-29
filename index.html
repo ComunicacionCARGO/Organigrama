@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Organigramas corporativos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;1,300;1,400&family=Oswald:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{--red:#ef4529;--cream:#fffbf3;--ink:#3a3a3a;--mute:rgba(58,58,58,.33)}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{display:flex;flex-direction:column;font:400 14px Inter,Arial,sans-serif;color:var(--ink);background:var(--cream)}
+  :focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  header{background:var(--red);border-bottom:12px solid var(--ink);padding:16px 20px 0;color:var(--cream)}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+  .sel{position:relative}
+  .sel select{appearance:none;-webkit-appearance:none;border:0;border-radius:10px;height:48px;padding:0 44px 0 16px;background:rgba(255,251,243,.14);color:var(--cream);font:500 18px Inter,Arial,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.22);cursor:pointer;max-width:72vw}
+  .sel option{color:var(--ink);background:var(--cream);font-size:16px}
+  .sel svg{position:absolute;right:16px;top:50%;translate:0 -50%;pointer-events:none}
+  .ic{border:0;border-radius:10px;width:48px;height:48px;background:rgba(255,251,243,.14);box-shadow:0 2px 6px rgba(0,0,0,.22);display:grid;place-items:center;cursor:pointer;color:var(--cream)}
+  .search{display:flex;align-items:center;gap:10px;background:var(--cream);border-radius:10px;padding:0 14px;height:48px;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+  .search svg{flex:none}
+  .search .sep{width:2px;height:24px;background:var(--mute)}
+  .search input{flex:1;min-width:0;border:0;outline:0;background:none;font:400 18px Inter,Arial,sans-serif;color:var(--ink)}
+  .search input::placeholder{color:var(--mute);opacity:1}
+  .bands{height:18px;margin:16px -20px 0;background:linear-gradient(var(--cream),var(--cream)) 0 0/100% 3px no-repeat,linear-gradient(var(--cream),var(--cream)) 0 15px/100% 3px no-repeat}
+  main{flex:1;position:relative;min-height:0}
+  #chart{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  #chart:active{cursor:grabbing}
+  .brand{position:absolute;top:14px;right:18px;display:flex;align-items:center;gap:12px;text-align:right;pointer-events:none}
+  .brand img{height:38px}
+  #titulo,.logo-txt{font:700 20px Oswald,Impact,sans-serif}
+  .logo-txt{color:var(--red)}
+  .float{position:absolute;right:16px;bottom:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .float button{border:0;border-radius:10px;min-width:44px;height:44px;padding:0 16px;background:var(--ink);color:var(--cream);font:500 14px Inter,Arial,sans-serif;cursor:pointer}
+  .float button:hover{background:var(--red)}
+  #zin,#zout{font-size:22px;padding:0}
+  #msg{position:absolute;left:16px;bottom:16px;background:var(--ink);color:var(--cream);border-radius:10px;padding:10px 14px;max-width:340px;display:none}
+  footer{display:flex;flex-wrap:wrap;gap:6px 28px;padding:12px 20px;background:var(--ink);color:var(--cream);font-size:14px}
+  footer b{font-weight:500;opacity:.65}
+  @media print{header,.float{display:none}@page{size:landscape;margin:8mm}}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="sel">
+      <select id="vista" aria-label="Vista"></select>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fffbf3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
+    </div>
+    <button id="recargar" class="ic" title="Actualizar datos" aria-label="Actualizar datos">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/></svg>
+    </button>
+  </div>
+  <label class="search">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(58,58,58,.33)" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M15.5 15.5L21 21"/></svg>
+    <span class="sep"></span>
+    <input id="buscar" type="search" placeholder="Buscar persona o cargo" aria-label="Buscar persona o cargo">
+  </label>
+  <div class="bands"></div>
+</header>
+<main>
+  <svg id="chart"></svg>
+  <div class="brand"><div id="titulo"></div><img id="logo" alt="Logo" hidden><span class="logo-txt" id="logotxt">TU EMPRESA</span></div>
+  <div class="float">
+    <button id="zin" title="Acercar" aria-label="Acercar">+</button>
+    <button id="zout" title="Alejar" aria-label="Alejar">−</button>
+    <button id="reset">Reiniciar</button>
+    <button id="png">PNG</button>
+    <button id="pdf">PDF</button>
+  </div>
+  <div id="msg" role="status"></div>
+</main>
+<footer><span><b>Preparó:</b> <span id="f-prep">—</span></span><span><b>Aprobó:</b> <span id="f-apr">—</span></span><span><b>Última revisión:</b> <span id="f-rev">—</span></span></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+/* ============ CONFIGURACIÓN ============
+ * SHEET_ID: ID del Google Sheet (compartido como "Cualquier persona con el enlace: lector"
+ * o publicado en la web). Si queda vacío se usan los datos de ejemplo. */
+const CONFIG = {
+  SHEET_ID: '',
+  TAB_PUESTOS: 'PUESTOS_Y_PERSONAS',
+  TAB_AREAS: 'CONFIG_AREAS',
+  CACHE_MIN: 10,            // minutos de validez de la caché local
+  LOGO_URL: '',             // URL del logo (opcional)
+  LOGO_TEXT: 'TU EMPRESA',
+  RED: '#ef4529'
+};
+
+/* ============ DATOS DE EJEMPLO (se usan si no hay SHEET_ID o falla la red) ============ */
+const DEMO = {
+  puestos: `id_puesto,nombre_persona,cargo,foto_url,id_reporta_a,id_reporta_funcional,operacion_area,grupo_bloque,tipo_nodo,detalles_extra,email
+P-001,Ana Pérez,Gerente Operativo,,,,CMQ_CBA,,PERSONA,
+P-002,Luis Gómez,Jefe de Logística,,P-001,,CMQ_CBA,AREAS_SERVICIO,PERSONA,
+P-003,Marta Ruiz,Jefa de Tráfico,,P-001,,CMQ_CBA,AREAS_SERVICIO,PERSONA,
+P-004,Sofía Díaz,Analista de Calidad,,P-001,,CMQ_CBA,AREA_SOPORTE,PERSONA,
+P-005,Carlos Vega,Coordinador RRHH,,P-001,P-002,CMQ_CBA,AREA_SOPORTE,PERSONA,
+P-006,,Choferes,,P-002,,CMQ_CBA,,INFORMACION,"Turno mañana: 12\\nTurno tarde: 10\\nPasantes: 2"
+P-007,,Operativos,,P-003,,CMQ_CBA,,EQUIPO,"Turno mañana: 8\\nTurno tarde: 6"
+D-001,María López,Director General,,,,DIRECCION,,PERSONA,,mlopez@grupocargo.com
+D-002,Jorge Sosa,Director Comercial,,D-001,,DIRECCION,,PERSONA,,jsosa@grupocargo.com
+D-003,Laura Núñez,Directora de RRHH,,D-001,,DIRECCION,,PERSONA,,lnunez@grupocargo.com`,
+  areas: `id_area,titulo_vista,color_borde_grupo,preparo,aprobo,ultima_revision
+DIRECCION,Dirección General,#1565C0,RRHH,Dirección,2026-09-01
+CMQ_CBA,CMQ Córdoba,#D32F2F,J. Martínez,A. Pérez,2026-09-15`
+};
+
+/* ============ CARGA DE DATOS CON CACHÉ ============ */
+const csvUrl = tab => `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+const parse = t => Papa.parse(t, {header:true, skipEmptyLines:true, transformHeader:h=>h.trim()}).data
+  .map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k, (v||'').toString().trim()])));
+
+async function getTab(tab, force){
+  const key = 'org:' + CONFIG.SHEET_ID + ':' + tab, c = JSON.parse(localStorage.getItem(key) || 'null');
+  if (c && !force && Date.now() - c.t < CONFIG.CACHE_MIN * 60000) return c.d;
+  try {
+    const res = await fetch(csvUrl(tab)); if (!res.ok) throw new Error(res.status);
+    const d = parse(await res.text());
+    try { localStorage.setItem(key, JSON.stringify({t:Date.now(), d})); } catch(e){}
+    return d;
+  } catch(err){
+    if (c) { say('Sin conexión con la hoja: se muestran datos en caché.'); return c.d; }
+    throw err;
+  }
+}
+async function loadData(force){
+  if (!CONFIG.SHEET_ID) { say('Modo demo: define CONFIG.SHEET_ID en index.html.'); return {puestos:parse(DEMO.puestos), areas:parse(DEMO.areas)}; }
+  try { const [puestos, areas] = await Promise.all([getTab(CONFIG.TAB_PUESTOS, force), getTab(CONFIG.TAB_AREAS, force).catch(()=>[])]); return {puestos, areas}; }
+  catch(e){ say('No se pudo leer la hoja (¿está compartida como pública?). Se muestran datos de ejemplo.'); return {puestos:parse(DEMO.puestos), areas:parse(DEMO.areas)}; }
+}
+function say(t){ const m = document.getElementById('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(say.t); say.t = setTimeout(()=>m.style.display='none', 6000); }
+
+/* ============ ESTADO Y ELEMENTOS ============ */
+const $ = id => document.getElementById(id);
+let DATA = {puestos:[], areas:[]}, current = null, nodes = [];
+const svg = d3.select('#chart');
+const viewport = svg.append('g').attr('id','viewport');
+const zoom = d3.zoom().scaleExtent([0.1, 3]).on('zoom', e => viewport.attr('transform', e.transform));
+svg.call(zoom).on('dblclick.zoom', null);
+
+const W = 260, H = 88, GX = 40, GY = 70;                 // tamaño de tarjeta y separaciones
+const isInfo = d => d.tipo_nodo === 'INFORMACION' || d.tipo_nodo === 'EQUIPO';
+const lines = d => (d.detalles_extra || '').split(/\\n|\n/).filter(Boolean);
+const hOf = d => isInfo(d) ? Math.max(84, 66 + lines(d).length * 18) : H;
+function wrap(s, n, max){ const out = []; let cur = '';
+  for (const w of (s||'').split(/\s+/)) { if ((cur + ' ' + w).trim().length > n && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
+  if (cur) out.push(cur); return out.slice(0, max); }
+
+/* ============ RENDER ============ */
+function render(areaId){
+  current = areaId;
+  const cfg = DATA.areas.find(a => a.id_area === areaId) || {};
+  const rows = DATA.puestos.filter(r => r.operacion_area === areaId);
+  $('titulo').textContent = cfg.titulo_vista || areaId;
+  $('f-prep').textContent = cfg.preparo || '—'; $('f-apr').textContent = cfg.aprobo || '—'; $('f-rev').textContent = cfg.ultima_revision || '—';
+  document.title = (cfg.titulo_vista || areaId) + ' · Organigrama';
+  viewport.selectAll('*').remove();
+  if (!rows.length) { nodes = []; say('Esta vista no tiene puestos.'); return; }
+
+  // --- Jerarquía por id_reporta_a (línea continua) ---
+  const byId = new Map(rows.map(r => [r.id_puesto, r])), kids = new Map(), seen = new Set();
+  rows.forEach(r => { const p = byId.has(r.id_reporta_a) && r.id_reporta_a !== r.id_puesto ? r.id_reporta_a : null;
+    if (p) (kids.get(p) || kids.set(p, []).get(p)).push(r); });
+  const build = r => { seen.add(r.id_puesto); return {...r, children:(kids.get(r.id_puesto)||[]).filter(k=>!seen.has(k.id_puesto)).map(build)}; };
+  const roots = rows.filter(r => !byId.has(r.id_reporta_a) || r.id_reporta_a === r.id_puesto).map(build);
+  const root = d3.hierarchy(roots.length === 1 ? roots[0] : {virtual:true, children:roots});
+  d3.tree().nodeSize([W + GX, H + GY]).separation((a,b) => a.parent === b.parent ? 1 : 1.2)(root);
+  const all = root.descendants().filter(d => !d.data.virtual);
+  nodes = all.map(d => ({...d.data, x:d.x, y:d.y, h:hOf(d.data)}));
+  const pos = new Map(nodes.map(n => [n.id_puesto, n]));
+
+  // --- Bloques contenedores (grupo_bloque) ---
+  const boxes = {}, PAD = 20, TOP = 28, BOT = 40;
+  nodes.filter(n => n.grupo_bloque).forEach(n => {
+    const b = boxes[n.grupo_bloque] ||= {x0:1e9, y0:1e9, x1:-1e9, y1:-1e9};
+    b.x0 = Math.min(b.x0, n.x - W/2); b.x1 = Math.max(b.x1, n.x + W/2);
+    b.y0 = Math.min(b.y0, n.y); b.y1 = Math.max(b.y1, n.y + n.h); });
+  const color = cfg.color_borde_grupo || '#777';
+  const gg = viewport.append('g');
+  Object.entries(boxes).forEach(([name, b]) => {
+    b.x = b.x0 - PAD; b.y = b.y0 - TOP; b.w = b.x1 - b.x0 + PAD*2; b.h = b.y1 - b.y0 + TOP + BOT;
+    gg.append('rect').attr('x',b.x).attr('y',b.y).attr('width',b.w).attr('height',b.h).attr('rx',8)
+      .attr('fill',color).attr('fill-opacity',.06).attr('stroke',color).attr('stroke-width',2).attr('stroke-dasharray','8 5');
+    const label = name.replace(/_/g,' ').toLowerCase().replace(/^./, c => c.toUpperCase());
+    gg.append('text').attr('x',b.x + 16).attr('y',b.y + b.h - 14).attr('style','font-family:Inter,Arial,sans-serif;font-style:italic;font-weight:400')
+      .attr('font-size',14).attr('fill',color).text(label); });
+
+  // --- Líneas (esquinas redondeadas) ---
+  const RED = CONFIG.RED, INK = '#3a3a3a', CREAM = '#fffbf3', R = 18;
+  const elbow = (sx, sy, tx, ty, my) => {
+    const dx = tx - sx, d = Math.sign(dx), r = Math.max(0, Math.min(R, my - sy, ty - my, Math.abs(dx) / 2));
+    return !dx || !r ? `M${sx},${sy}V${my}H${tx}V${ty}`
+      : `M${sx},${sy}V${my - r}Q${sx},${my} ${sx + d * r},${my}H${tx - d * r}Q${tx},${my} ${tx},${my + r}V${ty}`; };
+  const lg = viewport.append('g').attr('fill', 'none').attr('stroke-linecap', 'round');
+  root.links().filter(l => !l.source.data.virtual).forEach(l => {
+    const s = pos.get(l.source.data.id_puesto), t = pos.get(l.target.data.id_puesto);
+    lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4); });
+  // Funcional: punteada oscura hacia un puesto o un bloque completo
+  nodes.filter(n => n.id_reporta_funcional).forEach(n => {
+    const s = pos.get(n.id_reporta_funcional), b = boxes[n.id_reporta_funcional];
+    const sx = s ? s.x + 16 : b ? b.x + b.w / 2 : null, sy = s ? s.y + s.h : b ? b.y + b.h : null;
+    if (sx === null) return;
+    lg.append('path').attr('d', elbow(sx, sy, n.x + 16, n.y, n.y - GY / 2 + 16)).attr('stroke', INK).attr('stroke-width', 2.5).attr('stroke-dasharray', '8 6'); });
+
+  // --- Tarjetas ---
+  const cards = viewport.append('g').selectAll('g').data(nodes).join('g').attr('class', 'card')
+    .attr('transform', d => `translate(${d.x - W / 2},${d.y})`);
+  const shape = d => { const h = d.h, rr = 12, rl = isInfo(d) ? 12 : h / 2;
+    return `M${rl},0H${W - rr}A${rr},${rr} 0 0 1 ${W},${rr}V${h - rr}A${rr},${rr} 0 0 1 ${W - rr},${h}H${rl}A${rl},${rl} 0 0 1 0,${h - rl}V${rl}A${rl},${rl} 0 0 1 ${rl},0Z`; };
+  cards.append('path').attr('class', 'frame').attr('d', shape)
+    .attr('fill', d => isInfo(d) ? CREAM : RED).attr('stroke', d => isInfo(d) ? RED : 'none').attr('stroke-width', 2.5);
+  const OS = 'font-family:Oswald,Impact,sans-serif;font-weight:700', IN = 'font-family:Inter,Arial,sans-serif';
+  const txt = (g, x, y, s, style, size, fill, anchor) => g.append('text').attr('x', x).attr('y', y)
+    .attr('text-anchor', anchor || 'start').attr('style', style).attr('font-size', size).attr('fill', fill).text(s);
+
+  cards.each(function (d, i) {
+    const g = d3.select(this);
+    if (isInfo(d)) {                                   // INFORMACION / EQUIPO: sin foto
+      txt(g, 24, 36, d.cargo || '', OS, 17, RED);
+      lines(d).forEach((t, k) => txt(g, 24, 62 + k * 18, t, IN, 13.5, INK));
+      return; }
+    const cl = wrap(d.cargo || '', 18, 2), top = (H - (cl.length * 18 + 20 + (d.email ? 14 : 0))) / 2;
+    cl.forEach((t, k) => txt(g, W - 14, top + 14 + k * 18, t, OS, 17, CREAM, 'end'));   // Puesto: Oswald Bold
+    const ly = top + cl.length * 18 + 2;
+    g.append('line').attr('x1', 96).attr('x2', W - 14).attr('y1', ly).attr('y2', ly).attr('stroke', CREAM);
+    const nm = d.nombre_persona || 'Vacante';                                            // Nombre: Inter Regular
+    txt(g, W - 14, ly + 16, nm, IN + ';font-style:' + (d.nombre_persona ? 'normal' : 'italic'), nm.length > 20 ? 12 : 13.5, CREAM, 'end');
+    if (d.email) txt(g, W - 14, ly + 30, d.email, IN + ';font-weight:300;font-style:italic', d.email.length > 26 ? 9.5 : 11, CREAM, 'end');  // Mail: Inter Light Italic
+    const cx = 44, cy = H / 2, r = 38;                 // Foto circular
+    g.append('clipPath').attr('id', 'cp' + i).append('circle').attr('cx', cx).attr('cy', cy).attr('r', r);
+    g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', CREAM).attr('fill-opacity', .25);
+    txt(g, cx, cy + 8, (d.nombre_persona || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(), OS, 22, CREAM, 'middle');
+    if (d.foto_url) g.append('image').attr('href', d.foto_url).attr('x', cx - r).attr('y', cy - r).attr('width', r * 2).attr('height', r * 2)
+      .attr('preserveAspectRatio', 'xMidYMid slice').attr('clip-path', `url(#cp${i})`).attr('crossorigin', 'anonymous');
+    g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', 'none').attr('stroke', CREAM).attr('stroke-width', 3); });
+
+  cards.append('title').text(d => [d.cargo, d.nombre_persona].filter(Boolean).join(' — '));
+  highlight($('buscar').value, false);
+  fit();
+}
+
+/* ============ ZOOM / VISTA ============ */
+function fit(){
+  const el = svg.node(), b = viewport.node().getBBox(), w = el.clientWidth, h = el.clientHeight;
+  if (!b.width) return;
+  const k = Math.min(w / (b.width + 80), h / (b.height + 80), 1);
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(w/2 - k*(b.x + b.width/2), h/2 - k*(b.y + b.height/2)).scale(k));
+}
+$('zin').onclick = () => svg.transition().duration(200).call(zoom.scaleBy, 1.3);
+$('zout').onclick = () => svg.transition().duration(200).call(zoom.scaleBy, 1/1.3);
+$('reset').onclick = fit;
+window.addEventListener('resize', () => nodes.length && fit());
+
+/* ============ BÚSQUEDA ============ */
+let hits = [], hitIdx = 0;
+function highlight(q, focus = true){
+  q = q.trim().toLowerCase();
+  hits = q ? nodes.filter(n => (n.nombre_persona + ' ' + n.cargo).toLowerCase().includes(q)) : [];
+  const ids = new Set(hits.map(h => h.id_puesto));
+  viewport.selectAll('.card').style('opacity', d => !q || ids.has(d.id_puesto) ? 1 : .25)
+    .select('.frame').attr('stroke', d => ids.has(d.id_puesto) ? '#3a3a3a' : isInfo(d) ? CONFIG.RED : 'none').attr('stroke-width', d => ids.has(d.id_puesto) ? 4 : 2.5);
+  if (focus && hits.length) focusNode(hits[hitIdx % hits.length]);
+}
+function focusNode(n){
+  const el = svg.node(), k = 1.1;
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(el.clientWidth/2 - k*n.x, el.clientHeight/2 - k*(n.y + n.h/2)).scale(k));
+}
+$('buscar').addEventListener('input', e => { hitIdx = 0; highlight(e.target.value); });
+$('buscar').addEventListener('keydown', e => { if (e.key === 'Enter' && hits.length) { hitIdx++; focusNode(hits[hitIdx % hits.length]); } });
+
+/* ============ EXPORTAR ============ */
+const blobToData = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+async function exportPNG(){
+  const b = viewport.node().getBBox(), pad = 30, w = b.width + pad*2, h = b.height + pad*2;
+  const clone = svg.node().cloneNode(true);
+  clone.querySelector('#viewport').setAttribute('transform', `translate(${pad - b.x},${pad - b.y})`);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg'); clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  clone.setAttribute('width', w); clone.setAttribute('height', h); clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect'); bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#fffbf3');
+  clone.insertBefore(bg, clone.firstChild);
+  // Incrusta fotos como data-URI (si el servidor de la imagen permite CORS)
+  await Promise.all([...clone.querySelectorAll('image')].map(async im => {
+    try { im.setAttribute('href', await blobToData(await (await fetch(im.getAttribute('href'))).blob())); } catch(e){ im.remove(); } }));
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], {type:'image/svg+xml'}));
+  const img = new Image();
+  img.onload = () => { const s = 2, c = document.createElement('canvas'); c.width = w*s; c.height = h*s;
+    const x = c.getContext('2d'); x.scale(s,s); x.drawImage(img,0,0); URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.download = `organigrama_${current}.png`; a.href = c.toDataURL('image/png'); a.click(); };
+  img.src = url;
+}
+$('png').onclick = exportPNG;
+$('pdf').onclick = () => { fit(); setTimeout(() => window.print(), 500); };   // "Guardar como PDF" en el diálogo
+
+/* ============ ARRANQUE ============ */
+function fillSelect(){
+  const ids = [...new Set(DATA.puestos.map(p => p.operacion_area).filter(Boolean))];
+  const sel = $('vista'), prev = current || location.hash.slice(1);
+  sel.innerHTML = ids.map(id => `<option value="${id}">${(DATA.areas.find(a => a.id_area === id) || {}).titulo_vista || id}</option>`).join('');
+  sel.value = ids.includes(prev) ? prev : ids[0];
+  render(sel.value);
+}
+$('vista').onchange = e => { location.hash = e.target.value; render(e.target.value); };
+$('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); };
+if (CONFIG.LOGO_URL) { $('logo').src = CONFIG.LOGO_URL; $('logo').hidden = false; $('logotxt').hidden = true; } else $('logotxt').textContent = CONFIG.LOGO_TEXT;
+loadData().then(d => { DATA = d; fillSelect(); });
+</script>
+</body>
+</html>
