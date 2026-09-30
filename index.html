@@ -279,10 +279,18 @@ function render(areaId){
     g.append('clipPath').attr('id', 'cp' + i).append('circle').attr('cx', cx).attr('cy', cy).attr('r', r);
     g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', CREAM).attr('fill-opacity', .25);
     txt(g, cx, cy + 8, (d.nombre_persona || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(), OS, 22, CREAM, 'middle');
-    if (d.foto_url) g.append('image').attr('href', d.foto_url).attr('x', cx - r).attr('y', cy - r).attr('width', r * 2).attr('height', r * 2)
-      .attr('preserveAspectRatio', 'xMidYMid slice').attr('clip-path', `url(#cp${i})`).attr('crossorigin', 'anonymous');
-    g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', 'none').attr('stroke', CREAM).attr('stroke-width', 3); });
-
+    const fotoDirecta = cleanImageUrl(d.foto_url);
+    if (fotoDirecta) {
+      g.append('image')
+       .attr('href', fotoDirecta)
+       .attr('x', cx - r)
+       .attr('y', cy - r)
+       .attr('width', r * 2)
+       .attr('height', r * 2)
+       .attr('preserveAspectRatio', 'xMidYMid slice')
+       .attr('clip-path', `url(#cp${i})`)
+       .attr('crossorigin', 'anonymous');
+    }
   cards.append('title').text(d => [d.cargo, d.nombre_persona].filter(Boolean).join(' — '));
   highlight($('buscar').value, false);
   fit();
