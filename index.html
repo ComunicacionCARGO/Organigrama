@@ -279,18 +279,10 @@ function render(areaId){
     g.append('clipPath').attr('id', 'cp' + i).append('circle').attr('cx', cx).attr('cy', cy).attr('r', r);
     g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', CREAM).attr('fill-opacity', .25);
     txt(g, cx, cy + 8, (d.nombre_persona || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(), OS, 22, CREAM, 'middle');
-    const fotoDirecta = cleanImageUrl(d.foto_url);
-    if (fotoDirecta) {
-      g.append('image')
-       .attr('href', fotoDirecta)
-       .attr('x', cx - r)
-       .attr('y', cy - r)
-       .attr('width', r * 2)
-       .attr('height', r * 2)
-       .attr('preserveAspectRatio', 'xMidYMid slice')
-       .attr('clip-path', `url(#cp${i})`)
-       .attr('crossorigin', 'anonymous');
-    }
+    if (d.foto_url) g.append('image').attr('href', d.foto_url).attr('x', cx - r).attr('y', cy - r).attr('width', r * 2).attr('height', r * 2)
+      .attr('preserveAspectRatio', 'xMidYMid slice').attr('clip-path', `url(#cp${i})`).attr('crossorigin', 'anonymous');
+    g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', 'none').attr('stroke', CREAM).attr('stroke-width', 3); });
+
   cards.append('title').text(d => [d.cargo, d.nombre_persona].filter(Boolean).join(' — '));
   highlight($('buscar').value, false);
   fit();
@@ -325,22 +317,6 @@ function focusNode(n){
 $('buscar').addEventListener('input', e => { hitIdx = 0; highlight(e.target.value); });
 $('buscar').addEventListener('keydown', e => { if (e.key === 'Enter' && hits.length) { hitIdx++; focusNode(hits[hitIdx % hits.length]); } });
 
-/* Convierte enlaces de Google Drive o fórmulas =IMAGEN() a URLs directas */
-function cleanImageUrl(url) {
-  if (!url) return '';
-  
-  // Si la celda contenía =IMAGEN("https://..."), extrae solo la URL
-  const matchFormula = url.match(/=IMAGEN\s*\(\s*["']([^"']+)["']\s*\)/i);
-  if (matchFormula) url = matchFormula[1];
-
-  // Si es un enlace de Google Drive, conviértelo a vista previa directa
-  const driveMatch = url.match(/\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/);
-  if (driveMatch && driveMatch[1]) {
-    return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
-  }
-
-  return url;
-}
 /* ============ EXPORTAR ============ */
 const blobToData = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 async function exportPNG(){
