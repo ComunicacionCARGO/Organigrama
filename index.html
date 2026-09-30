@@ -317,6 +317,22 @@ function focusNode(n){
 $('buscar').addEventListener('input', e => { hitIdx = 0; highlight(e.target.value); });
 $('buscar').addEventListener('keydown', e => { if (e.key === 'Enter' && hits.length) { hitIdx++; focusNode(hits[hitIdx % hits.length]); } });
 
+/* Convierte enlaces de Google Drive o fórmulas =IMAGEN() a URLs directas */
+function cleanImageUrl(url) {
+  if (!url) return '';
+  
+  // Si la celda contenía =IMAGEN("https://..."), extrae solo la URL
+  const matchFormula = url.match(/=IMAGEN\s*\(\s*["']([^"']+)["']\s*\)/i);
+  if (matchFormula) url = matchFormula[1];
+
+  // Si es un enlace de Google Drive, conviértelo a vista previa directa
+  const driveMatch = url.match(/\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/);
+  if (driveMatch && driveMatch[1]) {
+    return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+  }
+
+  return url;
+}
 /* ============ EXPORTAR ============ */
 const blobToData = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 async function exportPNG(){
