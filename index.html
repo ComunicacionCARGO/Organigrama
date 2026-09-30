@@ -151,22 +151,26 @@ function wrap(s, n, max){ const out = []; let cur = '';
   if (cur) out.push(cur); return out.slice(0, max); }
 
 /* ============ LAYOUT: horizontal; los equipos grandes se apilan hacia abajo ============ */
-const IND = 52, GS = 26;                          // sangría y separación de las listas apiladas
+const IND = 80, GS = 26;                          // sangría y separación de las listas apiladas
 function layoutTree(roots, stack){
-  const sw = new Map(), out = [], links = [], stacks = [];
+  const sw = new Map(), out = [], links = [], stacks = [], rowH = new Map(), rowY = new Map();
+  const isSt = n => n.children.length && stack.has(n.d.id_puesto);
+  const scan = n => { rowH.set(n.lv, Math.max(rowH.get(n.lv) || 0, hOf(n.d))); if (!isSt(n)) n.children.forEach(scan); };
+  roots.forEach(scan);                            // filas realmente usadas: los niveles vacíos se omiten
+  let acc = 0; [...rowH.keys()].sort((a, b) => a - b).forEach(k => { rowY.set(k, acc); acc += Math.max(rowH.get(k), H) + GY; });
   const width = n => { const k = n.children.length;
-    const w = !k ? W : stack.has(n.d.id_puesto) ? W + IND : Math.max(W, n.children.reduce((a, c) => a + width(c), 0) + GX * (k - 1));
+    const w = !k ? W : isSt(n) ? W + IND : Math.max(W, n.children.reduce((a, c) => a + width(c), 0) + GX * (k - 1));
     sw.set(n, w); return w; };
-  const place = (n, left, y) => {
-    const w = sw.get(n), h = hOf(n.d), st = n.children.length && stack.has(n.d.id_puesto);
-    const o = {...n.d, x: st ? left + W / 2 : left + w / 2, y, h}; out.push(o);
-    if (st) { let cy = y + h + GS;                // lista vertical (solo hojas)
-      n.children.forEach(c => { const co = {...c.d, x: left + IND + W / 2, y: cy, h: hOf(c.d)}; out.push(co); stacks.push({s: o, t: co}); cy += co.h + GS; }); }
-    else if (n.children.length) {                 // hijos en fila
+  const place = (n, left) => {
+    const w = sw.get(n), h = hOf(n.d), y = rowY.get(n.lv), st = isSt(n);
+    const o = {...n.d, x: st ? left + W / 2 : left + w / 2, y, h, bus: y + Math.max(rowH.get(n.lv), H) + GY / 2}; out.push(o);
+    if (st) { let cy = y + h + GS;                // lista vertical (solo hojas), ordenada por nivel
+      n.children.slice().sort((a, b) => a.lv - b.lv).forEach(c => { const co = {...c.d, x: left + IND + W / 2, y: cy, h: hOf(c.d)}; out.push(co); stacks.push({s: o, t: co}); cy += co.h + GS; }); }
+    else if (n.children.length) {                 // hijos: cada uno en la fila de su nivel
       const tot = n.children.reduce((a, c) => a + sw.get(c), 0) + GX * (n.children.length - 1); let x = left + (w - tot) / 2;
-      n.children.forEach(c => { links.push({s: o, t: place(c, x, y + Math.max(h, H) + GY)}); x += sw.get(c) + GX; }); }
+      n.children.forEach(c => { links.push({s: o, t: place(c, x)}); x += sw.get(c) + GX; }); }
     return o; };
-  let x = 0; roots.forEach(r => { width(r); place(r, x, 0); x += sw.get(r) + GX; });
+  let x = 0; roots.forEach(r => { width(r); place(r, x); x += sw.get(r) + GX; });
   return {out, links, stacks, width: Math.max(0, x - GX)};
 }
 
@@ -194,6 +198,11 @@ function render(areaId){
   const vis = [...keep.values()].sort((a, b) => order.get(a.id_puesto) - order.get(b.id_puesto));
   const nmap = new Map(vis.map(r => [r.id_puesto, {d: r, children: []}])), roots = [];
   vis.forEach(r => { const n = nmap.get(r.id_puesto), p = r.id_reporta_a !== r.id_puesto && nmap.get(r.id_reporta_a); (p ? p.children : roots).push(n); });
+
+  // --- nivel_jerarquia: fila de cada puesto (vacío = un nivel bajo su jefe; nunca por encima de su jefe) ---
+  const num = r => { const v = parseFloat(String(r.nivel_jerarquia || '').replace(',', '.')); return Number.isFinite(v) ? v : null; };
+  const setLv = (n, pl) => { const o = num(n.d); n.lv = pl === null ? (o ?? 0) : Math.max(o ?? pl + 1, pl + 1); n.children.forEach(c => setLv(c, n.lv)); };
+  roots.forEach(r => setLv(r, null));
 
   // --- Si queda demasiado ancho, apila hacia abajo los equipos (solo hojas) más numerosos ---
   const stack = new Set();
@@ -232,13 +241,13 @@ function render(areaId){
   const lg = viewport.append('g').attr('fill', 'none').attr('stroke-linecap', 'round');
   const arrow = (x, y, dir, c) => lg.append('path').attr('fill', c).attr('stroke', c).attr('stroke-width', 1).attr('stroke-linejoin', 'round')
     .attr('d', dir === 'right' ? `M${x - AL},${y - AW}L${x},${y}L${x - AL},${y + AW}Z` : `M${x - AW},${y - AL}L${x},${y}L${x + AW},${y - AL}Z`);
-  L.links.forEach(({s, t}) => { lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y - AL, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4); arrow(t.x, t.y, 'down', RED); });
-  L.stacks.forEach(({s, t}) => { const sx = s.x - W / 2 + 20, tl = t.x - W / 2, ty = t.y + t.h / 2, r = Math.min(14, tl - sx - AL);   // columna vertical con derivaciones
-    lg.append('path').attr('d', `M${sx},${s.y + s.h}V${ty - r}Q${sx},${ty} ${sx + r},${ty}H${tl - AL}`).attr('stroke', RED).attr('stroke-width', 4); arrow(tl, ty, 'right', RED); });
+  L.links.forEach(({s, t}) => { lg.append('path').attr('d', elbow(s.x, s.y + s.h - 4, t.x, t.y - AL, s.bus)).attr('stroke', RED).attr('stroke-width', 4); arrow(t.x, t.y, 'down', RED); });
+  L.stacks.forEach(({s, t}) => { const sx = s.x - W / 2 + 44, tl = t.x - W / 2, ty = t.y + t.h / 2, r = Math.min(14, tl - sx - AL);   // nace en la base de la foto
+    lg.append('path').attr('d', `M${sx},${s.y + s.h - 4}V${ty - r}Q${sx},${ty} ${sx + r},${ty}H${tl - AL}`).attr('stroke', RED).attr('stroke-width', 4); arrow(tl, ty, 'right', RED); });
   // Funcional: punteada oscura hacia un puesto o un bloque completo
   nodes.filter(n => n.id_reporta_funcional).forEach(n => {
     const s = pos.get(n.id_reporta_funcional), b = boxes[n.id_reporta_funcional];
-    const sx = s ? s.x + 16 : b ? b.x + b.w / 2 : null, sy = s ? s.y + s.h : b ? b.y + b.h : null;
+    const sx = s ? s.x + 16 : b ? b.x + b.w / 2 : null, sy = s ? s.y + s.h - 4 : b ? b.y + b.h : null;
     if (sx === null) return;
     lg.append('path').attr('d', elbow(sx, sy, n.x + 16, n.y - AL, n.y - GY / 2 + 12)).attr('stroke', INK).attr('stroke-width', 2.5).attr('stroke-dasharray', '8 6'); arrow(n.x + 16, n.y, 'down', INK); });
 
