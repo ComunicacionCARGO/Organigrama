@@ -151,7 +151,7 @@ function wrap(s, n, max){ const out = []; let cur = '';
   if (cur) out.push(cur); return out.slice(0, max); }
 
 /* ============ LAYOUT: horizontal; los equipos grandes se apilan hacia abajo ============ */
-const IND = 40, GS = 26;                          // sangría y separación de las listas apiladas
+const IND = 52, GS = 26;                          // sangría y separación de las listas apiladas
 function layoutTree(roots, stack){
   const sw = new Map(), out = [], links = [], stacks = [];
   const width = n => { const k = n.children.length;
@@ -224,21 +224,23 @@ function render(areaId){
       .attr('font-size',14).attr('fill',color).text(label); });
 
   // --- Líneas (esquinas redondeadas) ---
-  const RED = CONFIG.RED, INK = '#3a3a3a', CREAM = '#fffbf3', R = 18;
+  const RED = CONFIG.RED, INK = '#3a3a3a', CREAM = '#fffbf3', R = 18, AL = 10, AW = 6;      // AL/AW: largo y semiancho de la punta de flecha
   const elbow = (sx, sy, tx, ty, my) => {
     const dx = tx - sx, d = Math.sign(dx), r = Math.max(0, Math.min(R, my - sy, ty - my, Math.abs(dx) / 2));
     return !dx || !r ? `M${sx},${sy}V${my}H${tx}V${ty}`
       : `M${sx},${sy}V${my - r}Q${sx},${my} ${sx + d * r},${my}H${tx - d * r}Q${tx},${my} ${tx},${my + r}V${ty}`; };
   const lg = viewport.append('g').attr('fill', 'none').attr('stroke-linecap', 'round');
-  L.links.forEach(({s, t}) => lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4));
-  L.stacks.forEach(({s, t}) => { const sx = s.x - W / 2 + 20, tl = t.x - W / 2, ty = t.y + t.h / 2, r = Math.min(14, tl - sx);   // columna vertical con derivaciones
-    lg.append('path').attr('d', `M${sx},${s.y + s.h}V${ty - r}Q${sx},${ty} ${sx + r},${ty}H${tl}`).attr('stroke', RED).attr('stroke-width', 4); });
+  const arrow = (x, y, dir, c) => lg.append('path').attr('fill', c).attr('stroke', c).attr('stroke-width', 1).attr('stroke-linejoin', 'round')
+    .attr('d', dir === 'right' ? `M${x - AL},${y - AW}L${x},${y}L${x - AL},${y + AW}Z` : `M${x - AW},${y - AL}L${x},${y}L${x + AW},${y - AL}Z`);
+  L.links.forEach(({s, t}) => { lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y - AL, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4); arrow(t.x, t.y, 'down', RED); });
+  L.stacks.forEach(({s, t}) => { const sx = s.x - W / 2 + 20, tl = t.x - W / 2, ty = t.y + t.h / 2, r = Math.min(14, tl - sx - AL);   // columna vertical con derivaciones
+    lg.append('path').attr('d', `M${sx},${s.y + s.h}V${ty - r}Q${sx},${ty} ${sx + r},${ty}H${tl - AL}`).attr('stroke', RED).attr('stroke-width', 4); arrow(tl, ty, 'right', RED); });
   // Funcional: punteada oscura hacia un puesto o un bloque completo
   nodes.filter(n => n.id_reporta_funcional).forEach(n => {
     const s = pos.get(n.id_reporta_funcional), b = boxes[n.id_reporta_funcional];
     const sx = s ? s.x + 16 : b ? b.x + b.w / 2 : null, sy = s ? s.y + s.h : b ? b.y + b.h : null;
     if (sx === null) return;
-    lg.append('path').attr('d', elbow(sx, sy, n.x + 16, n.y, n.y - GY / 2 + 16)).attr('stroke', INK).attr('stroke-width', 2.5).attr('stroke-dasharray', '8 6'); });
+    lg.append('path').attr('d', elbow(sx, sy, n.x + 16, n.y - AL, n.y - GY / 2 + 12)).attr('stroke', INK).attr('stroke-width', 2.5).attr('stroke-dasharray', '8 6'); arrow(n.x + 16, n.y, 'down', INK); });
 
   // --- Tarjetas ---
   const cards = viewport.append('g').selectAll('g').data(nodes).join('g').attr('class', 'card')
