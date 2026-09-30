@@ -86,13 +86,15 @@ const CONFIG = {
   CACHE_MIN: 10,            // minutos de validez de la caché local
   LOGO_URL: '',             // URL del logo (opcional)
   LOGO_TEXT: 'Grupo CARGO',
-  RED: '#ef4529'
+  RED: '#ef4529',
+  DIRECTOR_ID: 'D-001',     // este puesto se muestra SIEMPRE en todas las vistas
+  ANCHO_MAX: 1800           // px. Si el organigrama es más ancho, los equipos se apilan hacia abajo (0 = nunca apilar)
 };
 
 /* ============ DATOS DE EJEMPLO (se usan si no hay SHEET_ID o falla la red) ============ */
 const DEMO = {
   puestos: `id_puesto,nombre_persona,cargo,foto_url,id_reporta_a,id_reporta_funcional,operacion_area,grupo_bloque,tipo_nodo,detalles_extra,email
-P-001,Ana Pérez,Gerente Operativo,,,,CMQ_CBA,,PERSONA,
+P-001,Ana Pérez,Gerente Operativo,,D-001,,CMQ_CBA,,PERSONA,
 P-002,Luis Gómez,Jefe de Logística,,P-001,,CMQ_CBA,AREAS_SERVICIO,PERSONA,
 P-003,Marta Ruiz,Jefa de Tráfico,,P-001,,CMQ_CBA,AREAS_SERVICIO,PERSONA,
 P-004,Sofía Díaz,Analista de Calidad,,P-001,,CMQ_CBA,AREA_SOPORTE,PERSONA,
@@ -148,6 +150,26 @@ function wrap(s, n, max){ const out = []; let cur = '';
   for (const w of (s||'').split(/\s+/)) { if ((cur + ' ' + w).trim().length > n && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
   if (cur) out.push(cur); return out.slice(0, max); }
 
+/* ============ LAYOUT: horizontal; los equipos grandes se apilan hacia abajo ============ */
+const IND = 40, GS = 26;                          // sangría y separación de las listas apiladas
+function layoutTree(roots, stack){
+  const sw = new Map(), out = [], links = [], stacks = [];
+  const width = n => { const k = n.children.length;
+    const w = !k ? W : stack.has(n.d.id_puesto) ? W + IND : Math.max(W, n.children.reduce((a, c) => a + width(c), 0) + GX * (k - 1));
+    sw.set(n, w); return w; };
+  const place = (n, left, y) => {
+    const w = sw.get(n), h = hOf(n.d), st = n.children.length && stack.has(n.d.id_puesto);
+    const o = {...n.d, x: st ? left + W / 2 : left + w / 2, y, h}; out.push(o);
+    if (st) { let cy = y + h + GS;                // lista vertical (solo hojas)
+      n.children.forEach(c => { const co = {...c.d, x: left + IND + W / 2, y: cy, h: hOf(c.d)}; out.push(co); stacks.push({s: o, t: co}); cy += co.h + GS; }); }
+    else if (n.children.length) {                 // hijos en fila
+      const tot = n.children.reduce((a, c) => a + sw.get(c), 0) + GX * (n.children.length - 1); let x = left + (w - tot) / 2;
+      n.children.forEach(c => { links.push({s: o, t: place(c, x, y + Math.max(h, H) + GY)}); x += sw.get(c) + GX; }); }
+    return o; };
+  let x = 0; roots.forEach(r => { width(r); place(r, x, 0); x += sw.get(r) + GX; });
+  return {out, links, stacks, width: Math.max(0, x - GX)};
+}
+
 /* ============ RENDER ============ */
 function render(areaId){
   current = areaId;
@@ -159,16 +181,30 @@ function render(areaId){
   viewport.selectAll('*').remove();
   if (!rows.length) { nodes = []; say('Esta vista no tiene puestos.'); return; }
 
-  // --- Jerarquía por id_reporta_a (línea continua) ---
-  const byId = new Map(rows.map(r => [r.id_puesto, r])), kids = new Map(), seen = new Set();
-  rows.forEach(r => { const p = byId.has(r.id_reporta_a) && r.id_reporta_a !== r.id_puesto ? r.id_reporta_a : null;
-    if (p) (kids.get(p) || kids.set(p, []).get(p)).push(r); });
-  const build = r => { seen.add(r.id_puesto); return {...r, children:(kids.get(r.id_puesto)||[]).filter(k=>!seen.has(k.id_puesto)).map(build)}; };
-  const roots = rows.filter(r => !byId.has(r.id_reporta_a) || r.id_reporta_a === r.id_puesto).map(build);
-  const root = d3.hierarchy(roots.length === 1 ? roots[0] : {virtual:true, children:roots});
-  d3.tree().nodeSize([W + GX, H + GY]).separation((a,b) => a.parent === b.parent ? 1 : 1.2)(root);
-  const all = root.descendants().filter(d => !d.data.virtual);
-  nodes = all.map(d => ({...d.data, x:d.x, y:d.y, h:hOf(d.data)}));
+  // --- Puestos visibles: los de la vista + la cadena de jefes hasta el director (aunque sean de otra vista) ---
+  const allById = new Map(DATA.puestos.map(r => [r.id_puesto, r])), order = new Map(DATA.puestos.map((r, i) => [r.id_puesto, i]));
+  const keep = new Map();
+  const addChain = r => { for (const ids = new Set(); r && !ids.has(r.id_puesto); r = allById.get(r.id_reporta_a)) {
+    ids.add(r.id_puesto);
+    if (!keep.has(r.id_puesto)) keep.set(r.id_puesto, r.operacion_area === areaId ? r : {...r, grupo_bloque:'', id_reporta_funcional:''}); } };
+  rows.forEach(addChain);
+  rows.forEach(r => allById.has(r.id_reporta_funcional) && addChain(allById.get(r.id_reporta_funcional)));   // jefe condicional de otra vista
+  if (allById.has(CONFIG.DIRECTOR_ID)) addChain(allById.get(CONFIG.DIRECTOR_ID));
+
+  const vis = [...keep.values()].sort((a, b) => order.get(a.id_puesto) - order.get(b.id_puesto));
+  const nmap = new Map(vis.map(r => [r.id_puesto, {d: r, children: []}])), roots = [];
+  vis.forEach(r => { const n = nmap.get(r.id_puesto), p = r.id_reporta_a !== r.id_puesto && nmap.get(r.id_reporta_a); (p ? p.children : roots).push(n); });
+
+  // --- Si queda demasiado ancho, apila hacia abajo los equipos (solo hojas) más numerosos ---
+  const stack = new Set();
+  let L = layoutTree(roots, stack);
+  while (CONFIG.ANCHO_MAX && L.width > CONFIG.ANCHO_MAX) {
+    const cand = [...nmap.values()].filter(n => n.children.length > 1 && n.children.every(c => !c.children.length) && !stack.has(n.d.id_puesto))
+      .sort((a, b) => b.children.length - a.children.length);
+    if (!cand.length) break;
+    stack.add(cand[0].d.id_puesto); L = layoutTree(roots, stack);
+  }
+  nodes = L.out;
   const pos = new Map(nodes.map(n => [n.id_puesto, n]));
 
   // --- Bloques contenedores (grupo_bloque) ---
@@ -194,9 +230,9 @@ function render(areaId){
     return !dx || !r ? `M${sx},${sy}V${my}H${tx}V${ty}`
       : `M${sx},${sy}V${my - r}Q${sx},${my} ${sx + d * r},${my}H${tx - d * r}Q${tx},${my} ${tx},${my + r}V${ty}`; };
   const lg = viewport.append('g').attr('fill', 'none').attr('stroke-linecap', 'round');
-  root.links().filter(l => !l.source.data.virtual).forEach(l => {
-    const s = pos.get(l.source.data.id_puesto), t = pos.get(l.target.data.id_puesto);
-    lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4); });
+  L.links.forEach(({s, t}) => lg.append('path').attr('d', elbow(s.x, s.y + s.h, t.x, t.y, t.y - GY / 2)).attr('stroke', RED).attr('stroke-width', 4));
+  L.stacks.forEach(({s, t}) => { const sx = s.x - W / 2 + 20, tl = t.x - W / 2, ty = t.y + t.h / 2, r = Math.min(14, tl - sx);   // columna vertical con derivaciones
+    lg.append('path').attr('d', `M${sx},${s.y + s.h}V${ty - r}Q${sx},${ty} ${sx + r},${ty}H${tl}`).attr('stroke', RED).attr('stroke-width', 4); });
   // Funcional: punteada oscura hacia un puesto o un bloque completo
   nodes.filter(n => n.id_reporta_funcional).forEach(n => {
     const s = pos.get(n.id_reporta_funcional), b = boxes[n.id_reporta_funcional];
