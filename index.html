@@ -83,6 +83,7 @@ const CONFIG = {
   SHEET_ID: '1PR9VujxSAhYip70wkQuhLw4XeMZvyZMlV2BGxuo9Hf0',
   TAB_PUESTOS: 'PUESTOS_Y_PERSONAS',
   TAB_AREAS: 'CONFIG_AREAS',
+  TAB_FOTOS: 'FOTOS',       // la completa el script de Apps Script a partir de las imágenes insertadas en las celdas
   CACHE_MIN: 10,            // minutos de validez de la caché local
   LOGO_URL: '',             // URL del logo (opcional)
   LOGO_TEXT: 'Grupo CARGO',
@@ -120,7 +121,7 @@ async function getTab(tab, force){
   try {
     const res = await fetch(csvUrl(tab)); if (!res.ok) throw new Error(res.status);
     const d = parse(await res.text());
-    try { localStorage.setItem(key, JSON.stringify({t:Date.now(), d})); } catch(e){}
+    try { const j = JSON.stringify({t:Date.now(), d}); if (j.length < 2.5e6) localStorage.setItem(key, j); } catch(e){}
     return d;
   } catch(err){
     if (c) { say('Sin conexión con la hoja: se muestran datos en caché.'); return c.d; }
@@ -134,9 +135,21 @@ async function loadData(force){
 }
 function say(t){ const m = document.getElementById('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(say.t); say.t = setTimeout(()=>m.style.display='none', 6000); }
 
+/* Fotos: la pestaña FOTOS guarda cada imagen como texto (data URI), troceada en columnas p1, p2, … */
+async function loadFotos(force){
+  if (!CONFIG.SHEET_ID) return new Map();
+  try {
+    const rows = await getTab(CONFIG.TAB_FOTOS, force), m = new Map();
+    rows.forEach(r => { const v = Object.keys(r).filter(k => /^p\d+$/.test(k)).sort((a, b) => a.slice(1) - b.slice(1)).map(k => r[k]).join('');
+      if (r.id_puesto && v.startsWith('data:image')) m.set(r.id_puesto, v); });
+    return m;
+  } catch(e) { return new Map(); }
+}
+const fotoSrc = d => FOTOS.get(d.id_puesto) || d.foto_url;     // imagen en celda > enlace
+
 /* ============ ESTADO Y ELEMENTOS ============ */
 const $ = id => document.getElementById(id);
-let DATA = {puestos:[], areas:[]}, current = null, nodes = [];
+let DATA = {puestos:[], areas:[]}, current = null, nodes = [], FOTOS = new Map();   // FOTOS: id_puesto -> imagen (data URI)
 const svg = d3.select('#chart');
 const viewport = svg.append('g').attr('id','viewport');
 const zoom = d3.zoom().scaleExtent([0.1, 3]).on('zoom', e => viewport.attr('transform', e.transform));
@@ -149,6 +162,18 @@ const hOf = d => isInfo(d) ? Math.max(84, 66 + lines(d).length * 18) : H;
 function wrap(s, n, max){ const out = []; let cur = '';
   for (const w of (s||'').split(/\s+/)) { if ((cur + ' ' + w).trim().length > n && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
   if (cur) out.push(cur); return out.slice(0, max); }
+
+function paintFotos(){                            // agrega/actualiza las fotos sin volver a dibujar el organigrama
+  const cx = 44, cy = H / 2, r = 38;
+  viewport.selectAll('.card').each(function (d, i) {
+    if (isInfo(d)) return;
+    const g = d3.select(this), src = fotoSrc(d), cur = g.select('image.foto');
+    if (!src) { cur.remove(); return; }
+    if (!cur.empty() && cur.attr('href') === src) return;
+    cur.remove();
+    g.insert('image', '.ring').attr('class', 'foto').attr('href', src).attr('x', cx - r).attr('y', cy - r).attr('width', r * 2).attr('height', r * 2)
+      .attr('preserveAspectRatio', 'xMidYMid slice').attr('clip-path', `url(#cp${i})`).attr('crossorigin', 'anonymous'); });
+}
 
 /* ============ LAYOUT: horizontal; los equipos grandes se apilan hacia abajo ============ */
 const IND = 80, GS = 26;                          // sangría y separación de las listas apiladas
@@ -279,10 +304,9 @@ function render(areaId){
     g.append('clipPath').attr('id', 'cp' + i).append('circle').attr('cx', cx).attr('cy', cy).attr('r', r);
     g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', CREAM).attr('fill-opacity', .25);
     txt(g, cx, cy + 8, (d.nombre_persona || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(), OS, 22, CREAM, 'middle');
-    if (d.foto_url) g.append('image').attr('href', d.foto_url).attr('x', cx - r).attr('y', cy - r).attr('width', r * 2).attr('height', r * 2)
-      .attr('preserveAspectRatio', 'xMidYMid slice').attr('clip-path', `url(#cp${i})`).attr('crossorigin', 'anonymous');
-    g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', 'none').attr('stroke', CREAM).attr('stroke-width', 3); });
+    g.append('circle').attr('class', 'ring').attr('cx', cx).attr('cy', cy).attr('r', r).attr('fill', 'none').attr('stroke', CREAM).attr('stroke-width', 3); });
 
+  paintFotos();
   cards.append('title').text(d => [d.cargo, d.nombre_persona].filter(Boolean).join(' — '));
   highlight($('buscar').value, false);
   fit();
@@ -349,9 +373,9 @@ function fillSelect(){
   render(sel.value);
 }
 $('vista').onchange = e => { location.hash = e.target.value; render(e.target.value); };
-$('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); };
+$('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); FOTOS = await loadFotos(true); paintFotos(); };
 if (CONFIG.LOGO_URL) { $('logo').src = CONFIG.LOGO_URL; $('logo').hidden = false; $('logotxt').hidden = true; } else $('logotxt').textContent = CONFIG.LOGO_TEXT;
-loadData().then(d => { DATA = d; fillSelect(); });
+loadData().then(d => { DATA = d; fillSelect(); }).then(loadFotos).then(m => { FOTOS = m; paintFotos(); });   // primero el organigrama, después las fotos
 </script>
 </body>
 </html>
