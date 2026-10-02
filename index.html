@@ -111,16 +111,16 @@ CMQ_CBA,CMQ Córdoba,#D32F2F,J. Martínez,A. Pérez,2026-09-15`
 };
 
 /* ============ CARGA DE DATOS CON CACHÉ ============ */
-const csvUrl = tab => `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+const csvUrl = tab => `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(tab)}`;
 const parse = t => Papa.parse(t, {header:true, skipEmptyLines:true, transformHeader:h=>h.trim()}).data
   .map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k, (v||'').toString().trim()])));
 
-async function getTab(tab, force){
-  const key = 'org:' + CONFIG.SHEET_ID + ':' + tab, c = JSON.parse(localStorage.getItem(key) || 'null');
-  if (c && !force && Date.now() - c.t < CONFIG.CACHE_MIN * 60000) return c.d;
+async function getTab(tab, force, ttl = CONFIG.CACHE_MIN, raw = false){
+  const key = 'org:' + CONFIG.SHEET_ID + ':' + tab + (raw ? ':raw' : ''), c = JSON.parse(localStorage.getItem(key) || 'null');
+  if (c && !force && Date.now() - c.t < ttl * 60000) return c.d;
   try {
     const res = await fetch(csvUrl(tab)); if (!res.ok) throw new Error(res.status);
-    const d = parse(await res.text());
+    const txt = await res.text(), d = raw ? Papa.parse(txt, {skipEmptyLines: true}).data : parse(txt);
     try { const j = JSON.stringify({t:Date.now(), d}); if (j.length < 2.5e6) localStorage.setItem(key, j); } catch(e){}
     return d;
   } catch(err){
@@ -138,14 +138,26 @@ function say(t){ const m = document.getElementById('msg'); m.textContent = t; m.
 /* Fotos: la pestaña FOTOS guarda cada imagen como texto (data URI), troceada en columnas p1, p2, … */
 async function loadFotos(force){
   if (!CONFIG.SHEET_ID) return new Map();
+  const m = new Map();
   try {
-    const rows = await getTab(CONFIG.TAB_FOTOS, force), m = new Map();
-    rows.forEach(r => { const v = Object.keys(r).filter(k => /^p\d+$/.test(k)).sort((a, b) => a.slice(1) - b.slice(1)).map(k => r[k]).join('');
-      if (r.id_puesto && v.startsWith('data:image')) m.set(r.id_puesto, v); });
-    return m;
-  } catch(e) { return new Map(); }
+    const rows = await getTab(CONFIG.TAB_FOTOS, force, 2, true);          // filas crudas: se leen por posición, no por nombre de columna
+    rows.forEach(r => {
+      let id = String(r[0] || '').trim(), partes = r.slice(1).map(x => String(x || '').trim());
+      if (id.startsWith('id_puesto')) {                                    // encabezado (o encabezado fusionado con la 1.ª fila por Google)
+        id = id.replace(/^id_puesto\s*/, ''); partes = partes.map(x => x.replace(/^p\d+\s+/, ''));
+        if (!id) return; }
+      const v = partes.join('');
+      if (id && v.startsWith('data:image')) m.set(id, v); });
+    console.info('[fotos] filas leídas:', rows.length, '· fotos válidas:', m.size, '· ids:', [...m.keys()].join(', '));
+  } catch (e) { console.warn('[fotos] no se pudo leer la pestaña FOTOS:', e); }
+  return m;
 }
-const fotoSrc = d => FOTOS.get(d.id_puesto) || d.foto_url;     // imagen en celda > enlace
+let FOTO_NOMBRE = new Map();                                    // nombre_persona -> imagen (misma persona en varias filas)
+const nk = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+function setFotos(m){ FOTOS = m; FOTO_NOMBRE = new Map();
+  DATA.puestos.forEach(r => { const u = m.get(r.id_puesto); if (u && r.nombre_persona) FOTO_NOMBRE.set(nk(r.nombre_persona), u); });
+  paintFotos(); }
+const fotoSrc = d => FOTOS.get(d.id_puesto) || (d.nombre_persona && FOTO_NOMBRE.get(nk(d.nombre_persona))) || d.foto_url;   // imagen de la fila > de la misma persona > enlace
 
 /* ============ ESTADO Y ELEMENTOS ============ */
 const $ = id => document.getElementById(id);
@@ -373,9 +385,9 @@ function fillSelect(){
   render(sel.value);
 }
 $('vista').onchange = e => { location.hash = e.target.value; render(e.target.value); };
-$('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); FOTOS = await loadFotos(true); paintFotos(); };
+$('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); setFotos(await loadFotos(true)); };
 if (CONFIG.LOGO_URL) { $('logo').src = CONFIG.LOGO_URL; $('logo').hidden = false; $('logotxt').hidden = true; } else $('logotxt').textContent = CONFIG.LOGO_TEXT;
-loadData().then(d => { DATA = d; fillSelect(); }).then(loadFotos).then(m => { FOTOS = m; paintFotos(); });   // primero el organigrama, después las fotos
+loadData().then(d => { DATA = d; fillSelect(); }).then(loadFotos).then(setFotos);   // primero el organigrama, después las fotos
 </script>
 </body>
 </html>
