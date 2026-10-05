@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Organigramas corporativos</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;1,300;1,400&family=Oswald:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Oswald:wght@700&display=swap" rel="stylesheet">
 <style>
   :root{--red:#ef4529;--cream:#fffbf3;--ink:#3a3a3a;--mute:rgba(58,58,58,.33)}
   *{box-sizing:border-box}
@@ -31,6 +31,8 @@
   .brand img{height:38px}
   #titulo,.logo-txt{font:700 20px Oswald,Impact,sans-serif}
   .logo-txt{color:var(--red)}
+  .brand-mark{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  #codigo{font:300 12px Inter,Arial,sans-serif;color:#7a7d85;letter-spacing:.02em}
   .float{position:absolute;right:16px;bottom:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .float button{border:0;border-radius:10px;min-width:44px;height:44px;padding:0 16px;background:var(--ink);color:var(--cream);font:500 14px Inter,Arial,sans-serif;cursor:pointer}
   .float button:hover{background:var(--red)}
@@ -61,7 +63,7 @@
 </header>
 <main>
   <svg id="chart"></svg>
-  <div class="brand"><div id="titulo"></div><img id="logo" alt="Logo" hidden><span class="logo-txt" id="logotxt">TU EMPRESA</span></div>
+  <div class="brand"><div id="titulo"></div><div class="brand-mark"><img id="logo" alt="Logo" hidden><span class="logo-txt" id="logotxt">TU EMPRESA</span><span id="codigo"></span></div></div>
   <div class="float">
     <button id="zin" title="Acercar" aria-label="Acercar">+</button>
     <button id="zout" title="Alejar" aria-label="Alejar">−</button>
@@ -86,7 +88,8 @@ const CONFIG = {
   TAB_FOTOS: 'FOTOS',       // la completa el script de Apps Script a partir de las imágenes insertadas en las celdas
   CACHE_MIN: 10,            // minutos de validez de la caché local
   LOGO_URL: 'Logo Cargo@2x.png',             // URL del logo (opcional)
-  LOGO_TEXT: 'C-RHHF001-02',
+  LOGO_TEXT: 'Grupo CARGO',
+  CODIGO_DOC: 'C-RHHF001-02',   // texto gris bajo el logo ('' = no mostrar)
   RED: '#ef4529',
   DIRECTOR_ID: 'D-001',     // este puesto se muestra SIEMPRE en todas las vistas
   ANCHO_MAX: 1800           // px. Si el organigrama es más ancho, los equipos se apilan hacia abajo (0 = nunca apilar)
@@ -387,6 +390,7 @@ function fillSelect(){
 $('vista').onchange = e => { location.hash = e.target.value; render(e.target.value); };
 $('recargar').onclick = async () => { DATA = await loadData(true); fillSelect(); say('Datos actualizados.'); setFotos(await loadFotos(true)); };
 if (CONFIG.LOGO_URL) { $('logo').src = CONFIG.LOGO_URL; $('logo').hidden = false; $('logotxt').hidden = true; } else $('logotxt').textContent = CONFIG.LOGO_TEXT;
+$('codigo').textContent = CONFIG.CODIGO_DOC || '';
 loadData().then(d => { DATA = d; fillSelect(); }).then(loadFotos).then(setFotos);   // primero el organigrama, después las fotos
 </script>
 </body>
